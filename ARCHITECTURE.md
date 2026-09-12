@@ -12,7 +12,7 @@ IncidentDeck is a Flutter application whose incident-response core remains opera
 
 ### Application
 
-`IncidentService` owns use-case orchestration. It gets time and incident ID generation through injected functions so tests can be deterministic. It loads an aggregate, invokes domain behavior, then saves the new revision through the repository abstraction.
+`IncidentService` owns use-case orchestration. It gets time and incident ID generation through injected functions so tests can be deterministic. Incident mutations use the repository's atomic `update` boundary so the load, domain mutation, and save are serialized as one operation within a repository instance.
 
 ### Data
 
@@ -21,11 +21,11 @@ IncidentDeck is a Flutter application whose incident-response core remains opera
 - `InMemoryIncidentRepository` for UI composition and deterministic tests
 - `JsonIncidentRepository` for versioned local snapshots at a host-selected file path
 
-The JSON adapter serializes local writes, writes a temporary file with `flush: true`, then replaces the target. This is a local durability mechanism, not a database transaction protocol.
+The JSON adapter serializes local read-modify-write mutations, writes a temporary file with `flush: true`, then replaces the target. This prevents lost updates between concurrent commands using the same repository instance. It is a local durability mechanism, not a database transaction protocol.
 
 ### UI
 
-The Material UI is intentionally thin. It declares incidents, displays core state, and advances the guarded lifecycle. It does not contain persistence or business rules.
+The Material UI is intentionally thin. It declares incidents, displays core state, and advances the guarded lifecycle. The app root retains its default local service across rebuilds so in-memory incident state is not accidentally replaced by a new repository. UI code does not contain persistence or business rules.
 
 ## Offline boundary
 
@@ -33,4 +33,4 @@ No domain or application source imports networking libraries. Future collaborati
 
 ## Concurrency boundary
 
-The JSON adapter serializes writes within one repository instance. Cross-process file locking and multi-device conflict resolution are not claimed in v0.1 and are roadmap work.
+Repository `update` operations are serialized within one repository instance and are covered by a concurrent-command regression test. Cross-process file locking, multi-isolate coordination, and multi-device conflict resolution are not claimed in v0.1 and remain roadmap work.
