@@ -64,7 +64,9 @@ class InMemorySyncOutbox implements SyncOutbox {
           return timeComparison;
         }
 
-        final incidentComparison = left.incident.id.compareTo(right.incident.id);
+        final incidentComparison = left.incident.id.compareTo(
+          right.incident.id,
+        );
         if (incidentComparison != 0) {
           return incidentComparison;
         }
