@@ -1,0 +1,18 @@
+analyzer:
+  exclude:
+    - build/**
+  errors:
+    invalid_assignment: error
+    missing_return: error
+
+dart_code_metrics:
+  anti-patterns: []
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_print
+    - directives_ordering
+    - prefer_final_fields
+    - prefer_final_locals
+    - use_super_parameters
