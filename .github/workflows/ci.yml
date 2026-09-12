@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: incidentdeck-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-quality:
+    name: Flutter quality and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Toolchain
+        run: |
+          flutter --version
+          dart --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Format gate
+        run: |
+          dart format lib test
+          git diff --exit-code -- lib test
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Tests
+        run: flutter test --coverage
+
+      - name: Release web build
+        run: flutter build web --release
+
+  ci-gate:
+    name: CI Gate
+    if: always()
+    needs:
+      - flutter-quality
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require green quality job
+        env:
+          RESULT: ${{ needs.flutter-quality.result }}
+        run: |
+          test "$RESULT" = "success"
