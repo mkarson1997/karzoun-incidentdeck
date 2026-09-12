@@ -41,6 +41,7 @@ void main() {
     expect(listed, hasLength(1));
     expect(listed.single.status, IncidentStatus.acknowledged);
     expect(listed.single.revision, 2);
+    expect(await third.backupFile.exists(), isTrue);
   });
 
   test('valid backup restores a corrupted primary snapshot', () async {
@@ -103,7 +104,7 @@ void main() {
 
     expect(listed.single.id, 'inc-new');
     expect(await file.exists(), isTrue);
-    expect(await repository.backupFile.exists(), isFalse);
+    expect(await repository.backupFile.exists(), isTrue);
   });
 
   test('unsupported snapshot version is rejected', () async {
