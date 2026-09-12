@@ -54,9 +54,9 @@ class InMemorySyncOutbox implements SyncOutbox {
   Future<List<SyncOperation>> pending() async {
     final operations = _operations.values.toList()
       ..sort((left, right) {
-        final timeComparison = left.enqueuedAt
-            .toUtc()
-            .compareTo(right.enqueuedAt.toUtc());
+        final timeComparison = left.enqueuedAt.toUtc().compareTo(
+          right.enqueuedAt.toUtc(),
+        );
         if (timeComparison != 0) {
           return timeComparison;
         }
@@ -73,6 +73,7 @@ class InMemorySyncOutbox implements SyncOutbox {
   bool _samePayload(SyncOperation left, SyncOperation right) {
     return left.baseRevision == right.baseRevision &&
         left.targetRevision == right.targetRevision &&
-        jsonEncode(left.incident.toJson()) == jsonEncode(right.incident.toJson());
+        jsonEncode(left.incident.toJson()) ==
+            jsonEncode(right.incident.toJson());
   }
 }
