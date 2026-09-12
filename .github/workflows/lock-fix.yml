@@ -1,0 +1,41 @@
+name: Temporary lockfile generation
+
+on:
+  push:
+    branches:
+      - feat/incidentdeck-v0.1-offline-core
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/incidentdeck-v0.1-offline-core
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Generate and commit the resolved dependency lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+          git add pubspec.lock
+          if git diff --cached --quiet; then
+            echo 'No lockfile change required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build: commit Flutter dependency lockfile'
+          git push origin HEAD:feat/incidentdeck-v0.1-offline-core
