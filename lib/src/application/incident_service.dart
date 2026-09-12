@@ -1,4 +1,5 @@
 import 'package:incidentdeck/src/data/incident_repository.dart';
+import 'package:incidentdeck/src/data/incident_snapshot_codec.dart';
 import 'package:incidentdeck/src/domain/incident.dart';
 
 typedef Clock = DateTime Function();
@@ -18,12 +19,15 @@ class IncidentService {
     required this.repository,
     Clock? clock,
     IncidentIdGenerator? idGenerator,
+    IncidentSnapshotCodec snapshotCodec = const IncidentSnapshotCodec(),
   }) : _clock = clock ?? _systemClock,
-       _idGenerator = idGenerator ?? MonotonicIncidentIdGenerator().call;
+       _idGenerator = idGenerator ?? MonotonicIncidentIdGenerator().call,
+       _snapshotCodec = snapshotCodec;
 
   final IncidentRepository repository;
   final Clock _clock;
   final IncidentIdGenerator _idGenerator;
+  final IncidentSnapshotCodec _snapshotCodec;
 
   static DateTime _systemClock() => DateTime.now().toUtc();
 
@@ -47,6 +51,16 @@ class IncidentService {
   Future<List<Incident>> listIncidents() => repository.list();
 
   Future<Incident?> getIncident(String id) => repository.find(id);
+
+  Future<String> exportSnapshot() async {
+    return _snapshotCodec.encode(await repository.list());
+  }
+
+  Future<List<Incident>> importSnapshot(String raw) async {
+    final incidents = _snapshotCodec.decode(raw);
+    await repository.replaceAll(incidents);
+    return repository.list();
+  }
 
   Future<Incident> transition(String id, IncidentStatus next) {
     final now = _clock().toUtc();
