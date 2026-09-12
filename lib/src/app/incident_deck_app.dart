@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:incidentdeck/src/app/default_incident_service.dart';
 import 'package:incidentdeck/src/application/incident_service.dart';
+import 'package:incidentdeck/src/application/notification_port.dart';
 import 'package:incidentdeck/src/domain/incident.dart';
 
 typedef IncidentServiceFactory = Future<IncidentService> Function();
@@ -91,11 +92,13 @@ class IncidentHomePage extends StatefulWidget {
 
 class _IncidentHomePageState extends State<IncidentHomePage> {
   late Future<List<Incident>> _incidents;
+  late Future<NotificationPermissionStatus> _notificationPermission;
 
   @override
   void initState() {
     super.initState();
     _reload();
+    _reloadNotificationPermission();
   }
 
   @override
@@ -103,11 +106,35 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
     super.didUpdateWidget(oldWidget);
     if (widget.service != oldWidget.service) {
       _reload();
+      _reloadNotificationPermission();
     }
   }
 
   void _reload() {
     _incidents = widget.service.listIncidents();
+  }
+
+  void _reloadNotificationPermission() {
+    _notificationPermission = widget.service.notificationPermissionStatus();
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    final status = await widget.service.requestNotificationPermission();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _notificationPermission = Future<NotificationPermissionStatus>.value(
+        status,
+      );
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Local notifications: ${_notificationPermissionLabel(status)}.',
+        ),
+      ),
+    );
   }
 
   Future<void> _declareIncident() async {
@@ -267,6 +294,24 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
           appBar: AppBar(
             title: const Text('IncidentDeck'),
             actions: <Widget>[
+              FutureBuilder<NotificationPermissionStatus>(
+                future: _notificationPermission,
+                builder: (context, snapshot) {
+                  final status =
+                      snapshot.data ?? NotificationPermissionStatus.unknown;
+                  final label = _notificationPermissionLabel(status);
+                  return Tooltip(
+                    message: 'Local notifications: $label',
+                    child: IconButton(
+                      onPressed: _requestNotificationPermission,
+                      icon: Icon(
+                        _notificationPermissionIcon(status),
+                        semanticLabel: 'Local notifications $label',
+                      ),
+                    ),
+                  );
+                },
+              ),
               Tooltip(
                 message: 'Import snapshot (Ctrl/⌘+I)',
                 child: IconButton(
@@ -484,10 +529,33 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
 
   Future<void> _raiseAlert() async {
     final message = await _prompt('Raise local alert', 'Alert message');
-    if (message != null) {
-      await _mutate(
-        () => widget.service.raiseAlert(widget.incidentId, message),
+    if (message == null) {
+      return;
+    }
+
+    try {
+      final result = await widget.service.raiseAlertAndNotify(
+        widget.incidentId,
+        message,
       );
+      if (!mounted) {
+        return;
+      }
+      setState(_reload);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Alert saved. Local notification '
+            '${_notificationDeliveryLabel(result.delivery)}.',
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Operation failed: $error')));
+      }
     }
   }
 
@@ -589,8 +657,11 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
               if (incident.alerts.isEmpty)
                 const Text('No local alerts.')
               else
-                ...incident.alerts.reversed.map(
-                  (alert) => Card(
+                ...incident.alerts.reversed.map((alert) {
+                  final delivery = widget.service.notificationDeliveryForAlert(
+                    alert.id,
+                  );
+                  return Card(
                     child: ListTile(
                       leading: Icon(
                         alert.isAcknowledged
@@ -599,9 +670,8 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                       ),
                       title: Text(alert.message),
                       subtitle: Text(
-                        alert.isAcknowledged
-                            ? 'Acknowledged'
-                            : 'Awaiting acknowledgement',
+                        '${alert.isAcknowledged ? 'Acknowledged' : 'Awaiting acknowledgement'} · '
+                        'Local delivery: ${_notificationDeliveryLabel(delivery)}',
                       ),
                       trailing: alert.isAcknowledged
                           ? const Icon(Icons.check_circle_outline)
@@ -615,8 +685,8 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                               child: const Text('Acknowledge'),
                             ),
                     ),
-                  ),
-                ),
+                  );
+                }),
               const SizedBox(height: 24),
               _SectionTitle('Timeline (${incident.timeline.length})'),
               const SizedBox(height: 8),
@@ -804,3 +874,36 @@ String _nextActionLabel(IncidentStatus status) => switch (status) {
   IncidentStatus.mitigated => 'Resolve',
   IncidentStatus.resolved => 'Resolved',
 };
+
+String _notificationPermissionLabel(NotificationPermissionStatus status) {
+  return switch (status) {
+    NotificationPermissionStatus.unknown => 'permission required',
+    NotificationPermissionStatus.granted => 'granted',
+    NotificationPermissionStatus.denied => 'denied',
+    NotificationPermissionStatus.unsupported => 'unsupported',
+  };
+}
+
+IconData _notificationPermissionIcon(NotificationPermissionStatus status) {
+  return switch (status) {
+    NotificationPermissionStatus.unknown => Icons.notifications_none_outlined,
+    NotificationPermissionStatus.granted =>
+      Icons.notifications_active_outlined,
+    NotificationPermissionStatus.denied => Icons.notifications_off_outlined,
+    NotificationPermissionStatus.unsupported =>
+      Icons.notifications_off_outlined,
+  };
+}
+
+String _notificationDeliveryLabel(NotificationDeliveryReceipt? receipt) {
+  if (receipt == null) {
+    return 'not attempted';
+  }
+  return switch (receipt.status) {
+    NotificationDeliveryStatus.delivered => 'delivered',
+    NotificationDeliveryStatus.permissionRequired => 'permission required',
+    NotificationDeliveryStatus.denied => 'denied',
+    NotificationDeliveryStatus.unsupported => 'unsupported',
+    NotificationDeliveryStatus.failed => 'failed',
+  };
+}
