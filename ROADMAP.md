@@ -1,6 +1,6 @@
 # Roadmap
 
-## Milestone 1: offline incident core
+## Milestone 1: offline incident core ✅
 
 - immutable incident aggregate and lifecycle state machine
 - responders, local alerts, timeline, revisioning
@@ -8,13 +8,15 @@
 - deterministic tests and Flutter shell
 - clean-checkout CI and web build evidence
 
-## Milestone 2: local durability and operational UX
+## Milestone 2: local durability and operational UX 🟡
 
-- restore the JSON repository into the application host
-- import/export with schema validation
-- crash-safe persistence hardening and corruption recovery tests
-- richer timeline, responder, alert, and incident-detail workflows
-- accessibility and keyboard-navigation coverage
+- durable JSON repository wired into supported native application hosts
+- deterministic import/export with schema validation
+- backup rotation and interrupted-write/corrupt-primary recovery
+- richer incident detail, responder, alert, acknowledgement, and timeline workflows
+- keyboard shortcuts and semantic accessibility coverage
+- explicit ephemeral web-preview boundary
+- release only after full clean-checkout validation and final hardening
 
 ## Milestone 3: notification boundary
 
