@@ -26,7 +26,9 @@ class _FakeNotificationPort implements NotificationPort {
   }
 
   @override
-  Future<NotificationDeliveryReceipt> deliver(NotificationMessage message) async {
+  Future<NotificationDeliveryReceipt> deliver(
+    NotificationMessage message,
+  ) async {
     if (throwOnDeliver) {
       throw StateError('native bridge failed');
     }
@@ -78,27 +80,30 @@ Future<Incident> _declare(IncidentService service) {
 }
 
 void main() {
-  test('unknown permission never triggers an implicit permission request', () async {
-    final notifications = _FakeNotificationPort();
-    final service = _service(notifications);
-    await _declare(service);
+  test(
+    'unknown permission never triggers an implicit permission request',
+    () async {
+      final notifications = _FakeNotificationPort();
+      final service = _service(notifications);
+      await _declare(service);
 
-    final result = await service.raiseAlertAndNotify(
-      'inc-notify',
-      'Page incident commander',
-    );
+      final result = await service.raiseAlertAndNotify(
+        'inc-notify',
+        'Page incident commander',
+      );
 
-    expect(
-      result.delivery.status,
-      NotificationDeliveryStatus.permissionRequired,
-    );
-    expect(notifications.delivered, isEmpty);
-    expect(result.incident.alerts.single.message, 'Page incident commander');
-    expect(
-      service.notificationDeliveryForAlert(result.alert.id)?.status,
-      NotificationDeliveryStatus.permissionRequired,
-    );
-  });
+      expect(
+        result.delivery.status,
+        NotificationDeliveryStatus.permissionRequired,
+      );
+      expect(notifications.delivered, isEmpty);
+      expect(result.incident.alerts.single.message, 'Page incident commander');
+      expect(
+        service.notificationDeliveryForAlert(result.alert.id)?.status,
+        NotificationDeliveryStatus.permissionRequired,
+      );
+    },
+  );
 
   test('explicit permission request enables local delivery', () async {
     final notifications = _FakeNotificationPort();
@@ -120,46 +125,55 @@ void main() {
     expect(notifications.delivered.single.body, 'Page incident commander');
   });
 
-  test('denied notification delivery does not roll back the domain alert', () async {
-    final notifications = _FakeNotificationPort(
-      permission: NotificationPermissionStatus.denied,
-    );
-    final service = _service(notifications);
-    await _declare(service);
+  test(
+    'denied notification delivery does not roll back the domain alert',
+    () async {
+      final notifications = _FakeNotificationPort(
+        permission: NotificationPermissionStatus.denied,
+      );
+      final service = _service(notifications);
+      await _declare(service);
 
-    final result = await service.raiseAlertAndNotify(
-      'inc-notify',
-      'Escalate to responder',
-    );
-    final persisted = await service.getIncident('inc-notify');
+      final result = await service.raiseAlertAndNotify(
+        'inc-notify',
+        'Escalate to responder',
+      );
+      final persisted = await service.getIncident('inc-notify');
 
-    expect(result.delivery.status, NotificationDeliveryStatus.denied);
-    expect(persisted?.alerts, hasLength(1));
-    expect(persisted?.alerts.single.message, 'Escalate to responder');
-    expect(persisted?.toJson().containsKey('notificationDeliveries'), isFalse);
-  });
+      expect(result.delivery.status, NotificationDeliveryStatus.denied);
+      expect(persisted?.alerts, hasLength(1));
+      expect(persisted?.alerts.single.message, 'Escalate to responder');
+      expect(
+        persisted?.toJson().containsKey('notificationDeliveries'),
+        isFalse,
+      );
+    },
+  );
 
-  test('native delivery failure is isolated from alert acknowledgement state', () async {
-    final notifications = _FakeNotificationPort(
-      permission: NotificationPermissionStatus.granted,
-      throwOnDeliver: true,
-    );
-    final service = _service(notifications);
-    await _declare(service);
+  test(
+    'native delivery failure is isolated from alert acknowledgement state',
+    () async {
+      final notifications = _FakeNotificationPort(
+        permission: NotificationPermissionStatus.granted,
+        throwOnDeliver: true,
+      );
+      final service = _service(notifications);
+      await _declare(service);
 
-    final result = await service.raiseAlertAndNotify(
-      'inc-notify',
-      'Escalate to responder',
-    );
-    expect(result.delivery.status, NotificationDeliveryStatus.failed);
-    expect(result.incident.alerts.single.isAcknowledged, isFalse);
+      final result = await service.raiseAlertAndNotify(
+        'inc-notify',
+        'Escalate to responder',
+      );
+      expect(result.delivery.status, NotificationDeliveryStatus.failed);
+      expect(result.incident.alerts.single.isAcknowledged, isFalse);
 
-    await service.acknowledgeAlert('inc-notify', result.alert.id);
-    final persisted = await service.getIncident('inc-notify');
-    expect(persisted?.alerts.single.isAcknowledged, isTrue);
-    expect(
-      service.notificationDeliveryForAlert(result.alert.id)?.status,
-      NotificationDeliveryStatus.failed,
-    );
-  });
+      await service.acknowledgeAlert('inc-notify', result.alert.id);
+      final persisted = await service.getIncident('inc-notify');
+      expect(persisted?.alerts.single.isAcknowledged, isTrue);
+      expect(
+        service.notificationDeliveryForAlert(result.alert.id)?.status,
+        NotificationDeliveryStatus.failed,
+      );
+    },
+  );
 }
