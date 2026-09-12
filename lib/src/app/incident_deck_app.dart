@@ -272,7 +272,7 @@ class _DeclareIncidentDialogState extends State<_DeclareIncidentDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<IncidentSeverity>(
-              value: _severity,
+              initialValue: _severity,
               decoration: const InputDecoration(labelText: 'Severity'),
               items: IncidentSeverity.values
                   .map(
