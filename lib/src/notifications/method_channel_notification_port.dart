@@ -38,7 +38,26 @@ class MethodChannelNotificationPort implements NotificationPort {
   Future<NotificationDeliveryReceipt> deliver(
     NotificationMessage message,
   ) async {
-    final permission = await permissionStatus();
+    final NotificationPermissionStatus permission;
+    try {
+      final raw = await _channel.invokeMethod<String>('permissionStatus');
+      permission = _parsePermission(raw);
+    } on MissingPluginException {
+      return NotificationDeliveryReceipt(
+        messageId: message.id,
+        status: NotificationDeliveryStatus.unsupported,
+        permission: NotificationPermissionStatus.unsupported,
+        error: 'No native IncidentDeck notification host is registered.',
+      );
+    } on PlatformException catch (error) {
+      return NotificationDeliveryReceipt(
+        messageId: message.id,
+        status: NotificationDeliveryStatus.failed,
+        permission: NotificationPermissionStatus.unknown,
+        error: error.message ?? error.code,
+      );
+    }
+
     switch (permission) {
       case NotificationPermissionStatus.unknown:
         return NotificationDeliveryReceipt(
