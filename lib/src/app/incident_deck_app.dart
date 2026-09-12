@@ -19,7 +19,8 @@ class _IncidentDeckAppState extends State<IncidentDeckApp> {
   void initState() {
     super.initState();
     _service =
-        widget.service ?? IncidentService(repository: InMemoryIncidentRepository());
+        widget.service ??
+        IncidentService(repository: InMemoryIncidentRepository());
   }
 
   @override
