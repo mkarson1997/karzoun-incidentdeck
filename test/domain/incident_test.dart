@@ -72,15 +72,16 @@ void main() {
   });
 
   test('incident JSON round-trip preserves aggregate state', () {
-    final original = Incident.create(
-      id: 'inc-4',
-      title: 'Storage pressure',
-      summary: 'Volume above threshold',
-      severity: IncidentSeverity.sev3,
-      now: t0,
-    )
-        .assignResponder('responder-a', t0.add(const Duration(minutes: 1)))
-        .addNote('Cleanup started', t0.add(const Duration(minutes: 2)));
+    final original =
+        Incident.create(
+              id: 'inc-4',
+              title: 'Storage pressure',
+              summary: 'Volume above threshold',
+              severity: IncidentSeverity.sev3,
+              now: t0,
+            )
+            .assignResponder('responder-a', t0.add(const Duration(minutes: 1)))
+            .addNote('Cleanup started', t0.add(const Duration(minutes: 2)));
 
     final restored = Incident.fromJson(original.toJson());
 

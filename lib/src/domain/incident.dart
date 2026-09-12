@@ -48,11 +48,11 @@ class IncidentAlert {
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'id': id,
-        'message': message,
-        'raisedAt': raisedAt.toUtc().toIso8601String(),
-        'acknowledgedAt': acknowledgedAt?.toUtc().toIso8601String(),
-      };
+    'id': id,
+    'message': message,
+    'raisedAt': raisedAt.toUtc().toIso8601String(),
+    'acknowledgedAt': acknowledgedAt?.toUtc().toIso8601String(),
+  };
 
   factory IncidentAlert.fromJson(Map<String, Object?> json) {
     final acknowledgedAt = json['acknowledgedAt'] as String?;
@@ -60,8 +60,9 @@ class IncidentAlert {
       id: json['id']! as String,
       message: json['message']! as String,
       raisedAt: DateTime.parse(json['raisedAt']! as String).toUtc(),
-      acknowledgedAt:
-          acknowledgedAt == null ? null : DateTime.parse(acknowledgedAt).toUtc(),
+      acknowledgedAt: acknowledgedAt == null
+          ? null
+          : DateTime.parse(acknowledgedAt).toUtc(),
     );
   }
 }
@@ -78,10 +79,10 @@ class IncidentTimelineEntry {
   final String message;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'kind': kind.name,
-        'at': at.toUtc().toIso8601String(),
-        'message': message,
-      };
+    'kind': kind.name,
+    'at': at.toUtc().toIso8601String(),
+    'message': message,
+  };
 
   factory IncidentTimelineEntry.fromJson(Map<String, Object?> json) {
     return IncidentTimelineEntry(
@@ -105,9 +106,9 @@ class Incident {
     required List<IncidentAlert> alerts,
     required List<IncidentTimelineEntry> timeline,
     required this.revision,
-  })  : responders = List<String>.unmodifiable(responders),
-        alerts = List<IncidentAlert>.unmodifiable(alerts),
-        timeline = List<IncidentTimelineEntry>.unmodifiable(timeline);
+  }) : responders = List<String>.unmodifiable(responders),
+       alerts = List<IncidentAlert>.unmodifiable(alerts),
+       timeline = List<IncidentTimelineEntry>.unmodifiable(timeline);
 
   factory Incident.create({
     required String id,
@@ -160,14 +161,14 @@ class Incident {
 
   static const Map<IncidentStatus, Set<IncidentStatus>> _allowedTransitions =
       <IncidentStatus, Set<IncidentStatus>>{
-    IncidentStatus.declared: <IncidentStatus>{IncidentStatus.acknowledged},
-    IncidentStatus.acknowledged: <IncidentStatus>{
-      IncidentStatus.mitigated,
-      IncidentStatus.resolved,
-    },
-    IncidentStatus.mitigated: <IncidentStatus>{IncidentStatus.resolved},
-    IncidentStatus.resolved: <IncidentStatus>{},
-  };
+        IncidentStatus.declared: <IncidentStatus>{IncidentStatus.acknowledged},
+        IncidentStatus.acknowledged: <IncidentStatus>{
+          IncidentStatus.mitigated,
+          IncidentStatus.resolved,
+        },
+        IncidentStatus.mitigated: <IncidentStatus>{IncidentStatus.resolved},
+        IncidentStatus.resolved: <IncidentStatus>{},
+      };
 
   Incident transitionTo(IncidentStatus next, DateTime at) {
     if (next == status) {
@@ -255,11 +256,7 @@ class Incident {
     return _copyWith(
       alerts: <IncidentAlert>[
         ...alerts,
-        IncidentAlert(
-          id: alertId,
-          message: normalized,
-          raisedAt: timestamp,
-        ),
+        IncidentAlert(id: alertId, message: normalized, raisedAt: timestamp),
       ],
       updatedAt: timestamp,
       timeline: <IncidentTimelineEntry>[
@@ -324,26 +321,25 @@ class Incident {
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'id': id,
-        'title': title,
-        'summary': summary,
-        'severity': severity.name,
-        'status': status.name,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        'responders': responders,
-        'alerts': alerts.map((alert) => alert.toJson()).toList(),
-        'timeline': timeline.map((entry) => entry.toJson()).toList(),
-        'revision': revision,
-      };
+    'id': id,
+    'title': title,
+    'summary': summary,
+    'severity': severity.name,
+    'status': status.name,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'responders': responders,
+    'alerts': alerts.map((alert) => alert.toJson()).toList(),
+    'timeline': timeline.map((entry) => entry.toJson()).toList(),
+    'revision': revision,
+  };
 
   factory Incident.fromJson(Map<String, Object?> json) {
     final responders = (json['responders']! as List<Object?>).cast<String>();
     final alerts = (json['alerts']! as List<Object?>)
         .map(
-          (value) => IncidentAlert.fromJson(
-            Map<String, Object?>.from(value! as Map),
-          ),
+          (value) =>
+              IncidentAlert.fromJson(Map<String, Object?>.from(value! as Map)),
         )
         .toList();
     final timeline = (json['timeline']! as List<Object?>)

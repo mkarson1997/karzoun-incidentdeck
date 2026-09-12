@@ -10,8 +10,8 @@ class IncidentDeckApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final incidentService = service ??
-        IncidentService(repository: InMemoryIncidentRepository());
+    final incidentService =
+        service ?? IncidentService(repository: InMemoryIncidentRepository());
     return MaterialApp(
       title: 'IncidentDeck',
       debugShowCheckedModeBanner: false,
@@ -101,7 +101,9 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Unable to load incidents: ${snapshot.error}'));
+            return Center(
+              child: Text('Unable to load incidents: ${snapshot.error}'),
+            );
           }
           final incidents = snapshot.data ?? const <Incident>[];
           if (incidents.isEmpty) {
@@ -142,7 +144,8 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
                         '${incident.responders.length} responders · '
                         '${incident.timeline.length} timeline events',
                       ),
-                      if (incident.status != IncidentStatus.resolved) ...<Widget>[
+                      if (incident.status !=
+                          IncidentStatus.resolved) ...<Widget>[
                         const SizedBox(height: 12),
                         FilledButton.tonal(
                           onPressed: () => _advance(incident),
@@ -166,11 +169,11 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
   }
 
   String _nextActionLabel(IncidentStatus status) => switch (status) {
-        IncidentStatus.declared => 'Acknowledge',
-        IncidentStatus.acknowledged => 'Mark mitigated',
-        IncidentStatus.mitigated => 'Resolve',
-        IncidentStatus.resolved => 'Resolved',
-      };
+    IncidentStatus.declared => 'Acknowledge',
+    IncidentStatus.acknowledged => 'Mark mitigated',
+    IncidentStatus.mitigated => 'Resolve',
+    IncidentStatus.resolved => 'Resolved',
+  };
 }
 
 class _EmptyState extends StatelessWidget {

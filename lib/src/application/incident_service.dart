@@ -18,8 +18,8 @@ class IncidentService {
     required this.repository,
     Clock? clock,
     IncidentIdGenerator? idGenerator,
-  })  : _clock = clock ?? _systemClock,
-        _idGenerator = idGenerator ?? MonotonicIncidentIdGenerator().call;
+  }) : _clock = clock ?? _systemClock,
+       _idGenerator = idGenerator ?? MonotonicIncidentIdGenerator().call;
 
   final IncidentRepository repository;
   final Clock _clock;
