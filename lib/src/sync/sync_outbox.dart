@@ -63,6 +63,26 @@ class InMemorySyncOutbox implements SyncOutbox {
         if (timeComparison != 0) {
           return timeComparison;
         }
+
+        final incidentComparison = left.incident.id.compareTo(right.incident.id);
+        if (incidentComparison != 0) {
+          return incidentComparison;
+        }
+
+        final baseRevisionComparison = left.baseRevision.compareTo(
+          right.baseRevision,
+        );
+        if (baseRevisionComparison != 0) {
+          return baseRevisionComparison;
+        }
+
+        final targetRevisionComparison = left.targetRevision.compareTo(
+          right.targetRevision,
+        );
+        if (targetRevisionComparison != 0) {
+          return targetRevisionComparison;
+        }
+
         return left.operationId.compareTo(right.operationId);
       });
     return List<SyncOperation>.unmodifiable(operations);

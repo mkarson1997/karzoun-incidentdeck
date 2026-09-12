@@ -87,11 +87,6 @@ class SyncCoordinator {
       );
     }
 
-    final remainingOperations = await outbox.pending();
-    final pendingIncidentIds = remainingOperations
-        .map((operation) => operation.incident.id)
-        .toSet();
-
     final orderedRemoteIncidents = <Incident>[...remoteIncidents]
       ..sort((left, right) {
         final idComparison = left.id.compareTo(right.id);
@@ -105,7 +100,7 @@ class SyncCoordinator {
     for (final remote in orderedRemoteIncidents) {
       final local = await repository.find(remote.id);
 
-      if (pendingIncidentIds.contains(remote.id)) {
+      if (await _hasPendingLocalWork(remote.id)) {
         remoteResults.add(
           RemoteApplyResult(
             incidentId: remote.id,
@@ -124,6 +119,13 @@ class SyncCoordinator {
       pushedOperationIds: List<String>.unmodifiable(pushedOperationIds),
       pushConflicts: List<SyncPushResult>.unmodifiable(pushConflicts),
       remoteResults: List<RemoteApplyResult>.unmodifiable(remoteResults),
+    );
+  }
+
+  Future<bool> _hasPendingLocalWork(String incidentId) async {
+    final pendingOperations = await outbox.pending();
+    return pendingOperations.any(
+      (operation) => operation.incident.id == incidentId,
     );
   }
 
