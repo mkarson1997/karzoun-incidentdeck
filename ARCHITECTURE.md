@@ -2,7 +2,7 @@
 
 ## Design target
 
-IncidentDeck is a Flutter application whose incident-response core remains operational without a network connection. The initial architecture deliberately keeps transport and vendor SDKs outside the domain.
+IncidentDeck is a Flutter application whose incident-response core remains operational without a network connection. Transport and vendor SDKs stay outside the domain.
 
 ## Layers
 
@@ -14,18 +14,33 @@ IncidentDeck is a Flutter application whose incident-response core remains opera
 
 `IncidentService` owns use-case orchestration. It gets time and incident ID generation through injected functions so tests can be deterministic. Incident mutations use the repository's atomic `update` boundary so the load, domain mutation, and save are serialized as one operation within a repository instance.
 
+The application service also owns validated snapshot transfer. `exportSnapshot` uses `IncidentSnapshotCodec` for deterministic JSON. `importSnapshot` decodes and validates the complete candidate snapshot before asking the repository to replace local state.
+
 ### Data
 
-`IncidentRepository` is the persistence boundary. v0.1 ships:
+`IncidentRepository` is the persistence boundary:
 
-- `InMemoryIncidentRepository` for UI composition and deterministic tests
-- `JsonIncidentRepository` for versioned local snapshots at a host-selected file path
+- `InMemoryIncidentRepository` supports tests and the intentionally ephemeral web preview
+- `JsonIncidentRepository` provides versioned local snapshots for native hosts
 
-The JSON adapter serializes local read-modify-write mutations, writes a temporary file with `flush: true`, then replaces the target. This prevents lost updates between concurrent commands using the same repository instance. It is a local durability mechanism, not a database transaction protocol.
+`JsonIncidentRepository` serializes writes through an in-process queue. A write is flushed to `incidents.json.tmp`, the prior primary is rotated to `incidents.json.bak`, and the temporary snapshot is promoted to the primary path. A valid completed write removes the backup.
+
+Startup recovery follows explicit precedence:
+
+1. valid primary snapshot
+2. if primary is missing after an interrupted rotation, a valid complete temporary snapshot
+3. valid backup snapshot
+4. otherwise fail closed with `IncidentStoreException`
+
+If the primary exists but is corrupt and the backup validates, the corrupt primary is quarantined as `.corrupt` and the backup is restored. Invalid schema or duplicate incident IDs are rejected by the snapshot codec.
+
+### Platform host
+
+`createDefaultIncidentService` is selected with a conditional import. Native Dart IO hosts use `path_provider` to resolve the platform application-support directory and create a JSON-backed repository. The web build uses an in-memory repository and explicitly labels itself `WEB EPHEMERAL`.
 
 ### UI
 
-The Material UI is intentionally thin. It declares incidents, displays core state, and advances the guarded lifecycle. The app root retains its default local service across rebuilds so in-memory incident state is not accidentally replaced by a new repository. UI code does not contain persistence or business rules.
+The Material UI contains incident declaration, snapshot transfer, incident detail, responder assignment, timeline notes, local alerts, acknowledgement, and lifecycle controls. Business rules remain in the domain/application layers. Core workspace commands expose keyboard shortcuts and semantic labels.
 
 ## Offline boundary
 
@@ -33,4 +48,8 @@ No domain or application source imports networking libraries. Future collaborati
 
 ## Concurrency boundary
 
-Repository `update` operations are serialized within one repository instance and are covered by a concurrent-command regression test. Cross-process file locking, multi-isolate coordination, and multi-device conflict resolution are not claimed in v0.1 and remain roadmap work.
+Repository `update`, `save`, and `replaceAll` operations are serialized within one repository instance. This prevents lost updates between concurrent commands sharing that instance. Cross-process file locking, multi-isolate coordination, and multi-device conflict resolution are not claimed and remain later roadmap work.
+
+## Durability boundary
+
+Backup rotation and recovery protect against several interrupted local-write states and corrupted primary snapshots. They do not provide filesystem-wide atomicity, hardware-failure guarantees, encrypted storage, remote backup, or database transaction semantics. Those boundaries are stated explicitly rather than implied by successful local tests.
