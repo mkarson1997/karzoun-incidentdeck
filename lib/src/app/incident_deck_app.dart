@@ -3,15 +3,27 @@ import 'package:incidentdeck/src/application/incident_service.dart';
 import 'package:incidentdeck/src/data/incident_repository.dart';
 import 'package:incidentdeck/src/domain/incident.dart';
 
-class IncidentDeckApp extends StatelessWidget {
+class IncidentDeckApp extends StatefulWidget {
   const IncidentDeckApp({super.key, this.service});
 
   final IncidentService? service;
 
   @override
+  State<IncidentDeckApp> createState() => _IncidentDeckAppState();
+}
+
+class _IncidentDeckAppState extends State<IncidentDeckApp> {
+  late final IncidentService _service;
+
+  @override
+  void initState() {
+    super.initState();
+    _service =
+        widget.service ?? IncidentService(repository: InMemoryIncidentRepository());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final incidentService =
-        service ?? IncidentService(repository: InMemoryIncidentRepository());
     return MaterialApp(
       title: 'IncidentDeck',
       debugShowCheckedModeBanner: false,
@@ -19,7 +31,7 @@ class IncidentDeckApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
         useMaterial3: true,
       ),
-      home: IncidentHomePage(service: incidentService),
+      home: IncidentHomePage(service: _service),
     );
   }
 }
