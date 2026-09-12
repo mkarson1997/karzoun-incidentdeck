@@ -40,7 +40,9 @@ jobs:
         run: flutter pub get
 
       - name: Format gate
-        run: dart format --output=none --set-exit-if-changed lib test
+        run: |
+          dart format lib test
+          git diff --exit-code -- lib test
 
       - name: Static analysis
         run: flutter analyze
