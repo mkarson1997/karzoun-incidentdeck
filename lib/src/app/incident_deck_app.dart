@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:incidentdeck/src/application/incident_service.dart';
 import 'package:incidentdeck/src/app/default_incident_service.dart';
+import 'package:incidentdeck/src/application/incident_service.dart';
 import 'package:incidentdeck/src/domain/incident.dart';
 
 typedef IncidentServiceFactory = Future<IncidentService> Function();
@@ -272,16 +272,20 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
                 message: 'Import snapshot (Ctrl/⌘+I)',
                 child: IconButton(
                   onPressed: _importSnapshot,
-                  icon: const Icon(Icons.file_download_outlined),
-                  semanticLabel: 'Import snapshot',
+                  icon: const Icon(
+                    Icons.file_download_outlined,
+                    semanticLabel: 'Import snapshot',
+                  ),
                 ),
               ),
               Tooltip(
                 message: 'Export snapshot (Ctrl/⌘+E)',
                 child: IconButton(
                   onPressed: _exportSnapshot,
-                  icon: const Icon(Icons.file_upload_outlined),
-                  semanticLabel: 'Export snapshot',
+                  icon: const Icon(
+                    Icons.file_upload_outlined,
+                    semanticLabel: 'Export snapshot',
+                  ),
                 ),
               ),
               Padding(
