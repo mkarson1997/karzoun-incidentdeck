@@ -55,7 +55,9 @@ class InMemoryIncidentRepository implements IncidentRepository {
   Future<void> replaceAll(Iterable<Incident> incidents) async {
     _incidents
       ..clear()
-      ..addEntries(incidents.map((incident) => MapEntry(incident.id, incident)));
+      ..addEntries(
+        incidents.map((incident) => MapEntry(incident.id, incident)),
+      );
   }
 }
 
@@ -230,7 +232,9 @@ class JsonIncidentRepository implements IncidentRepository {
       if (!await file.exists() && await backupFile.exists()) {
         await backupFile.rename(file.path);
       }
-      throw IncidentStoreException('Unable to commit incident snapshot: $error');
+      throw IncidentStoreException(
+        'Unable to commit incident snapshot: $error',
+      );
     }
   }
 

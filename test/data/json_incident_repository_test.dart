@@ -91,8 +91,12 @@ void main() {
     );
     const codec = IncidentSnapshotCodec();
     await file.parent.create(recursive: true);
-    await File('${file.path}.bak').writeAsString(codec.encode(<Incident>[oldIncident]));
-    await File('${file.path}.tmp').writeAsString(codec.encode(<Incident>[newIncident]));
+    await File(
+      '${file.path}.bak',
+    ).writeAsString(codec.encode(<Incident>[oldIncident]));
+    await File(
+      '${file.path}.tmp',
+    ).writeAsString(codec.encode(<Incident>[newIncident]));
 
     final repository = JsonIncidentRepository(file);
     final listed = await repository.list();

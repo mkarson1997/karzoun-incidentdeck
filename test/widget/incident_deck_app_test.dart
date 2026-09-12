@@ -10,7 +10,9 @@ void main() {
     return IncidentService(repository: InMemoryIncidentRepository());
   }
 
-  testWidgets('IncidentDeck renders the local incident workspace', (tester) async {
+  testWidgets('IncidentDeck renders the local incident workspace', (
+    tester,
+  ) async {
     await tester.pumpWidget(IncidentDeckApp(service: newService()));
     await tester.pumpAndSettle();
 
@@ -45,7 +47,9 @@ void main() {
     expect(find.text('ACKNOWLEDGED'), findsOneWidget);
   });
 
-  testWidgets('incident detail supports responders notes and alerts', (tester) async {
+  testWidgets('incident detail supports responders notes and alerts', (
+    tester,
+  ) async {
     final service = IncidentService(
       repository: InMemoryIncidentRepository(),
       clock: () => DateTime.utc(2026, 9, 12, 14),

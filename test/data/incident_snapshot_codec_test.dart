@@ -44,10 +44,7 @@ void main() {
       'incidents': <Object?>[incident.toJson(), incident.toJson()],
     });
 
-    expect(
-      () => codec.decode(raw),
-      throwsA(isA<IncidentSnapshotException>()),
-    );
+    expect(() => codec.decode(raw), throwsA(isA<IncidentSnapshotException>()));
   });
 
   test('unsupported schema is rejected', () {

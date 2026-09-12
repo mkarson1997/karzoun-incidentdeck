@@ -167,9 +167,7 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
         content: SizedBox(
           width: 640,
           height: 420,
-          child: SingleChildScrollView(
-            child: SelectableText(snapshot),
-          ),
+          child: SingleChildScrollView(child: SelectableText(snapshot)),
         ),
         actions: <Widget>[
           TextButton(
@@ -239,9 +237,9 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Import rejected: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Import rejected: $error')));
     }
   }
 
@@ -302,9 +300,7 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
               }
               if (snapshot.hasError) {
                 return Center(
-                  child: Text(
-                    'Unable to load incidents: ${snapshot.error}',
-                  ),
+                  child: Text('Unable to load incidents: ${snapshot.error}'),
                 );
               }
               final incidents = snapshot.data ?? const <Incident>[];
@@ -339,9 +335,9 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
                                   Expanded(
                                     child: Text(
                                       incident.title,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
                                     ),
                                   ),
                                   Text(incident.status.name.toUpperCase()),
@@ -429,9 +425,9 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Operation failed: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Operation failed: $error')));
       }
     }
   }
@@ -487,7 +483,9 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   Future<void> _raiseAlert() async {
     final message = await _prompt('Raise local alert', 'Alert message');
     if (message != null) {
-      await _mutate(() => widget.service.raiseAlert(widget.incidentId, message));
+      await _mutate(
+        () => widget.service.raiseAlert(widget.incidentId, message),
+      );
     }
   }
 
@@ -510,7 +508,9 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
           }
           final incident = snapshot.data;
           if (snapshot.hasError) {
-            return Center(child: Text('Unable to load incident: ${snapshot.error}'));
+            return Center(
+              child: Text('Unable to load incident: ${snapshot.error}'),
+            );
           }
           if (incident == null) {
             return const Center(child: Text('Incident no longer exists.'));
@@ -623,9 +623,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.history),
                   title: Text(entry.message),
-                  subtitle: Text(
-                    '${entry.kind.name} · ${entry.at.toLocal()}',
-                  ),
+                  subtitle: Text('${entry.kind.name} · ${entry.at.toLocal()}'),
                 ),
               ),
             ],
