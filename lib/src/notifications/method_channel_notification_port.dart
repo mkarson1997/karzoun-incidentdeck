@@ -3,7 +3,9 @@ import 'package:incidentdeck/src/application/notification_port.dart';
 
 class MethodChannelNotificationPort implements NotificationPort {
   MethodChannelNotificationPort({
-    MethodChannel channel = const MethodChannel('incidentdeck/local_notifications'),
+    MethodChannel channel = const MethodChannel(
+      'incidentdeck/local_notifications',
+    ),
   }) : _channel = channel;
 
   final MethodChannel _channel;
@@ -33,7 +35,9 @@ class MethodChannelNotificationPort implements NotificationPort {
   }
 
   @override
-  Future<NotificationDeliveryReceipt> deliver(NotificationMessage message) async {
+  Future<NotificationDeliveryReceipt> deliver(
+    NotificationMessage message,
+  ) async {
     final permission = await permissionStatus();
     switch (permission) {
       case NotificationPermissionStatus.unknown:
@@ -59,12 +63,13 @@ class MethodChannelNotificationPort implements NotificationPort {
     }
 
     try {
-      final delivered = await _channel.invokeMethod<bool>('show', <String, Object?>{
-        'id': message.id,
-        'title': message.title,
-        'body': message.body,
-        'payload': message.payload,
-      });
+      final delivered = await _channel
+          .invokeMethod<bool>('show', <String, Object?>{
+            'id': message.id,
+            'title': message.title,
+            'body': message.body,
+            'payload': message.payload,
+          });
       if (delivered == true) {
         return NotificationDeliveryReceipt(
           messageId: message.id,
