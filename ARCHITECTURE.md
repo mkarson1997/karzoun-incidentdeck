@@ -2,7 +2,7 @@
 
 ## Design target
 
-IncidentDeck is a Flutter application whose incident-response core remains operational without a network connection. Transport and vendor SDKs stay outside the domain.
+IncidentDeck is a Flutter application whose incident-response core remains operational without a network connection. Transport, notification delivery, and vendor SDKs stay outside the domain.
 
 ## Layers
 
@@ -10,11 +10,17 @@ IncidentDeck is a Flutter application whose incident-response core remains opera
 
 `Incident` is an immutable aggregate containing severity, status, responders, alerts, timeline entries, timestamps, and a monotonically increasing revision. Lifecycle transitions are validated by a small explicit state machine. Replaying an already-applied responder assignment, status value, or alert acknowledgement is safe and does not create another revision.
 
+A domain `IncidentAlert` records incident-response intent and acknowledgement only. It does not contain operating-system notification permission or delivery fields.
+
 ### Application
 
 `IncidentService` owns use-case orchestration. It gets time and incident ID generation through injected functions so tests can be deterministic. Incident mutations use the repository's atomic `update` boundary so the load, domain mutation, and save are serialized as one operation within a repository instance.
 
 The application service also owns validated snapshot transfer. `exportSnapshot` uses `IncidentSnapshotCodec` for deterministic JSON. `importSnapshot` decodes and validates the complete candidate snapshot before asking the repository to replace local state.
+
+Notification delivery is represented by the platform-neutral `NotificationPort`. `raiseAlertAndNotify` persists the domain alert first, then attempts local notification delivery. A permission denial, unsupported host, missing native channel, or delivery failure therefore cannot roll back or silently rewrite the incident alert. `NotificationDeliveryReceipt` values are kept in a process-local delivery map separate from the incident aggregate and snapshot codec.
+
+Permission requests are explicit. Raising an alert never calls `requestPermission` implicitly.
 
 ### Data
 
@@ -38,17 +44,29 @@ If the primary exists but is corrupt and the backup validates, the corrupt prima
 
 `createDefaultIncidentService` is selected with a conditional import. Native Dart IO hosts use `path_provider` to resolve the platform application-support directory and create a JSON-backed repository. The web build uses an in-memory repository and explicitly labels itself `WEB EPHEMERAL`.
 
+Notification-port selection is also conditional. The web preview uses `UnsupportedNotificationPort`. Native Dart IO hosts use `MethodChannelNotificationPort`, which communicates only through `incidentdeck/local_notifications` and expects three host methods:
+
+- `permissionStatus` → `unknown`, `granted`, `denied`, or `unsupported`
+- `requestPermission` → the resulting permission state
+- `show` → a boolean delivery acknowledgement for the supplied local message
+
+A missing channel is mapped to `unsupported`. Platform errors are surfaced as denied/failed states rather than represented as successful delivery. This repository does not claim that every Flutter platform embedding has registered the host channel yet.
+
 ### UI
 
-The Material UI contains incident declaration, snapshot transfer, incident detail, responder assignment, timeline notes, local alerts, acknowledgement, and lifecycle controls. Business rules remain in the domain/application layers. Core workspace commands expose keyboard shortcuts and semantic labels.
+The Material UI contains incident declaration, snapshot transfer, incident detail, responder assignment, timeline notes, local alerts, acknowledgement, lifecycle controls, explicit notification permission control, and per-alert local delivery status. Business rules remain in the domain/application layers. Core workspace commands expose keyboard shortcuts and semantic labels.
 
 ## Offline boundary
 
 No domain or application source imports networking libraries. Future collaboration features must implement explicit synchronization interfaces rather than teaching the aggregate to call a server.
 
+Local notification delivery is not network push delivery. No remote provider, token registration, device endpoint, or background service is introduced by Milestone 3.
+
 ## Concurrency boundary
 
 Repository `update`, `save`, and `replaceAll` operations are serialized within one repository instance. This prevents lost updates between concurrent commands sharing that instance. Cross-process file locking, multi-isolate coordination, and multi-device conflict resolution are not claimed and remain later roadmap work.
+
+Notification delivery receipts are currently process-local state. They are not cross-process synchronized and are not included in snapshot import/export.
 
 ## Durability boundary
 
