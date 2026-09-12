@@ -4,6 +4,15 @@ enum SyncPushStatus { accepted, conflict }
 
 enum RemoteApplyStatus { applied, unchanged, staleRemote, conflict }
 
+class SyncProtocolException implements Exception {
+  const SyncProtocolException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'SyncProtocolException: $message';
+}
+
 class SyncOperation {
   const SyncOperation({
     required this.operationId,
@@ -12,12 +21,50 @@ class SyncOperation {
     required this.enqueuedAt,
   });
 
+  factory SyncOperation.forIncident({
+    required Incident incident,
+    required int baseRevision,
+    required DateTime enqueuedAt,
+  }) {
+    if (baseRevision < 0) {
+      throw const SyncProtocolException(
+        'Sync base revision must not be negative.',
+      );
+    }
+    if (incident.revision <= baseRevision) {
+      throw SyncProtocolException(
+        'Sync target revision ${incident.revision} must be newer than '
+        'base revision $baseRevision for ${incident.id}.',
+      );
+    }
+
+    return SyncOperation(
+      operationId: stableOperationId(
+        incidentId: incident.id,
+        baseRevision: baseRevision,
+        targetRevision: incident.revision,
+      ),
+      incident: incident,
+      baseRevision: baseRevision,
+      enqueuedAt: enqueuedAt.toUtc(),
+    );
+  }
+
   final String operationId;
   final Incident incident;
   final int baseRevision;
   final DateTime enqueuedAt;
 
   int get targetRevision => incident.revision;
+
+  static String stableOperationId({
+    required String incidentId,
+    required int baseRevision,
+    required int targetRevision,
+  }) {
+    final encodedIncidentId = Uri.encodeComponent(incidentId);
+    return 'incident:$encodedIncidentId:$baseRevision:$targetRevision';
+  }
 
   Map<String, Object?> toJson() => <String, Object?>{
     'operationId': operationId,
@@ -60,9 +107,13 @@ class SyncCycleResult {
     required this.pushedOperationIds,
     required this.pushConflicts,
     required this.remoteResults,
+    this.transportError,
   });
 
   final List<String> pushedOperationIds;
   final List<SyncPushResult> pushConflicts;
   final List<RemoteApplyResult> remoteResults;
+  final String? transportError;
+
+  bool get completed => transportError == null;
 }
