@@ -98,13 +98,15 @@ void main() {
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
+    try {
+      await tester.pumpWidget(IncidentDeckApp(service: newService()));
+      await tester.pumpAndSettle();
 
-    await tester.pumpWidget(IncidentDeckApp(service: newService()));
-    await tester.pumpAndSettle();
-
-    expect(find.bySemanticsLabel('Import snapshot'), findsOneWidget);
-    expect(find.bySemanticsLabel('Export snapshot'), findsOneWidget);
-    expect(find.bySemanticsLabel('Declare incident'), findsWidgets);
+      expect(find.bySemanticsLabel('Import snapshot'), findsOneWidget);
+      expect(find.bySemanticsLabel('Export snapshot'), findsOneWidget);
+      expect(find.bySemanticsLabel('Declare incident'), findsWidgets);
+    } finally {
+      semantics.dispose();
+    }
   });
 }
