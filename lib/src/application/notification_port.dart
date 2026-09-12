@@ -64,7 +64,9 @@ class UnsupportedNotificationPort implements NotificationPort {
   }
 
   @override
-  Future<NotificationDeliveryReceipt> deliver(NotificationMessage message) async {
+  Future<NotificationDeliveryReceipt> deliver(
+    NotificationMessage message,
+  ) async {
     return NotificationDeliveryReceipt(
       messageId: message.id,
       status: NotificationDeliveryStatus.unsupported,
