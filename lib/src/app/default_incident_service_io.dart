@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:incidentdeck/src/app/default_notification_port.dart';
 import 'package:incidentdeck/src/application/incident_service.dart';
 import 'package:incidentdeck/src/data/incident_repository.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,5 +13,8 @@ Future<IncidentService> createDefaultIncidentService() async {
   final snapshot = File(
     '${dataDirectory.path}${Platform.pathSeparator}incidents.json',
   );
-  return IncidentService(repository: JsonIncidentRepository(snapshot));
+  return IncidentService(
+    repository: JsonIncidentRepository(snapshot),
+    notificationPort: createDefaultNotificationPort(),
+  );
 }

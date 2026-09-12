@@ -87,21 +87,27 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.text('Page incident commander'), findsOneWidget);
-    expect(find.text('Awaiting acknowledgement'), findsOneWidget);
+    expect(find.textContaining('Awaiting acknowledgement'), findsOneWidget);
+    expect(find.textContaining('Local delivery: unsupported'), findsOneWidget);
 
     await tester.tap(find.text('Acknowledge').last);
     await tester.pumpAndSettle();
-    expect(find.text('Acknowledged'), findsOneWidget);
+    expect(
+      find.text('Acknowledged · Local delivery: unsupported'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('workspace exposes semantic import and export controls', (
-    tester,
-  ) async {
+  testWidgets('workspace exposes semantic local controls', (tester) async {
     final semantics = tester.ensureSemantics();
     try {
       await tester.pumpWidget(IncidentDeckApp(service: newService()));
       await tester.pumpAndSettle();
 
+      expect(
+        find.bySemanticsLabel('Local notifications unsupported'),
+        findsOneWidget,
+      );
       expect(find.bySemanticsLabel('Import snapshot'), findsOneWidget);
       expect(find.bySemanticsLabel('Export snapshot'), findsOneWidget);
       expect(find.bySemanticsLabel('Declare incident'), findsWidgets);
