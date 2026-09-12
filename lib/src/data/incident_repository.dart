@@ -185,7 +185,6 @@ class JsonIncidentRepository implements IncidentRepository {
         final pending = await _read(temporaryFile);
         await file.parent.create(recursive: true);
         await temporaryFile.rename(file.path);
-        await _deleteIfExists(backupFile);
         return pending;
       } on IncidentStoreException {
         await _deleteIfExists(temporaryFile);
@@ -227,7 +226,6 @@ class JsonIncidentRepository implements IncidentRepository {
 
     try {
       await temporaryFile.rename(file.path);
-      await _deleteIfExists(backupFile);
     } on FileSystemException catch (error) {
       if (!await file.exists() && await backupFile.exists()) {
         await backupFile.rename(file.path);
