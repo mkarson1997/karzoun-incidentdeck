@@ -39,7 +39,8 @@ class IncidentService {
   }) : _clock = clock ?? _systemClock,
        _idGenerator = idGenerator ?? MonotonicIncidentIdGenerator().call,
        _snapshotCodec = snapshotCodec,
-       _notificationPort = notificationPort ?? const UnsupportedNotificationPort();
+       _notificationPort =
+           notificationPort ?? const UnsupportedNotificationPort();
 
   final IncidentRepository repository;
   final Clock _clock;
