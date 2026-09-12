@@ -887,8 +887,7 @@ String _notificationPermissionLabel(NotificationPermissionStatus status) {
 IconData _notificationPermissionIcon(NotificationPermissionStatus status) {
   return switch (status) {
     NotificationPermissionStatus.unknown => Icons.notifications_none_outlined,
-    NotificationPermissionStatus.granted =>
-      Icons.notifications_active_outlined,
+    NotificationPermissionStatus.granted => Icons.notifications_active_outlined,
     NotificationPermissionStatus.denied => Icons.notifications_off_outlined,
     NotificationPermissionStatus.unsupported =>
       Icons.notifications_off_outlined,
