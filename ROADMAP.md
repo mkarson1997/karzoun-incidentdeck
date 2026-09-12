@@ -8,7 +8,7 @@
 - deterministic tests and Flutter shell
 - clean-checkout CI and web build evidence
 
-## Milestone 2: local durability and operational UX 🟡
+## Milestone 2: local durability and operational UX ✅
 
 - durable JSON repository wired into supported native application hosts
 - deterministic import/export with schema validation
@@ -16,14 +16,18 @@
 - richer incident detail, responder, alert, acknowledgement, and timeline workflows
 - keyboard shortcuts and semantic accessibility coverage
 - explicit ephemeral web-preview boundary
-- release only after full clean-checkout validation and final hardening
+- clean-checkout CI and web release build verified on merged `main`
 
-## Milestone 3: notification boundary
+## Milestone 3: notification boundary 🟡
 
 - platform-neutral notification port
-- local/native notification adapter where supported
-- explicit permission handling
-- delivery state separated from domain alert state
+- explicit notification permission status and request flow
+- native method-channel adapter with unsupported-host detection
+- delivery receipt state separated from domain alert acknowledgement state
+- notification failures isolated from persisted incident alerts
+- workspace permission and per-alert delivery visibility
+- deterministic tests for granted, denied, unsupported, permission-required, and failed paths
+- native host channel implementations still require platform-specific verification before support is claimed
 
 ## Milestone 4: optional team synchronization
 
