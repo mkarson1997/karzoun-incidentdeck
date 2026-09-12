@@ -46,10 +46,10 @@ void main() {
       final result = await coordinator.synchronize();
 
       expect(result.completed, isTrue);
-      expect(
-        transport.pushedOperationIds,
-        <String>[second.operationId, first.operationId],
-      );
+      expect(transport.pushedOperationIds, <String>[
+        second.operationId,
+        first.operationId,
+      ]);
       expect(await outbox.pending(), isEmpty);
     });
 
@@ -94,10 +94,10 @@ void main() {
 
       expect(retried.completed, isTrue);
       expect(await outbox.pending(), isEmpty);
-      expect(
-        transport.pushedOperationIds,
-        <String>[operation.operationId, operation.operationId],
-      );
+      expect(transport.pushedOperationIds, <String>[
+        operation.operationId,
+        operation.operationId,
+      ]);
     });
 
     test('push conflict retains local operation', () async {
@@ -171,30 +171,8 @@ void main() {
     test('rejects a stale remote revision', () async {
       final repository = InMemoryIncidentRepository();
       final remote = _incident(id: 'incident-stale');
-      final local = remote.addNote('Local change', DateTime.utc(2026, 9, 12, 16));
-      await repository.save(local);
-
-      final transport = _FakeTransport()..remoteIncidents = <Incident>[remote];
-      final coordinator = SyncCoordinator(
-        repository: repository,
-        outbox: InMemorySyncOutbox(),
-        transport: transport,
-      );
-
-      final result = await coordinator.synchronize();
-
-      expect(
-        result.remoteResults.single.status,
-        RemoteApplyStatus.staleRemote,
-      );
-      expect((await repository.find(local.id))?.revision, 2);
-    });
-
-    test('applies a newer remote revision when no local work is pending', () async {
-      final repository = InMemoryIncidentRepository();
-      final local = _incident(id: 'incident-newer');
-      final remote = local.addNote(
-        'Remote mitigation detail',
+      final local = remote.addNote(
+        'Local change',
         DateTime.utc(2026, 9, 12, 16),
       );
       await repository.save(local);
@@ -208,9 +186,35 @@ void main() {
 
       final result = await coordinator.synchronize();
 
-      expect(result.remoteResults.single.status, RemoteApplyStatus.applied);
+      expect(result.remoteResults.single.status, RemoteApplyStatus.staleRemote);
       expect((await repository.find(local.id))?.revision, 2);
     });
+
+    test(
+      'applies a newer remote revision when no local work is pending',
+      () async {
+        final repository = InMemoryIncidentRepository();
+        final local = _incident(id: 'incident-newer');
+        final remote = local.addNote(
+          'Remote mitigation detail',
+          DateTime.utc(2026, 9, 12, 16),
+        );
+        await repository.save(local);
+
+        final transport = _FakeTransport()
+          ..remoteIncidents = <Incident>[remote];
+        final coordinator = SyncCoordinator(
+          repository: repository,
+          outbox: InMemorySyncOutbox(),
+          transport: transport,
+        );
+
+        final result = await coordinator.synchronize();
+
+        expect(result.remoteResults.single.status, RemoteApplyStatus.applied);
+        expect((await repository.find(local.id))?.revision, 2);
+      },
+    );
 
     test('equal revision and equal state is unchanged', () async {
       final repository = InMemoryIncidentRepository();
@@ -226,36 +230,37 @@ void main() {
 
       final result = await coordinator.synchronize();
 
-      expect(
-        result.remoteResults.single.status,
-        RemoteApplyStatus.unchanged,
-      );
+      expect(result.remoteResults.single.status, RemoteApplyStatus.unchanged);
     });
 
-    test('equal revision with divergent state is an explicit conflict', () async {
-      final repository = InMemoryIncidentRepository();
-      final local = _incident(
-        id: 'incident-divergent',
-        summary: 'Local summary',
-      );
-      final remote = _incident(
-        id: 'incident-divergent',
-        summary: 'Remote summary',
-      );
-      await repository.save(local);
+    test(
+      'equal revision with divergent state is an explicit conflict',
+      () async {
+        final repository = InMemoryIncidentRepository();
+        final local = _incident(
+          id: 'incident-divergent',
+          summary: 'Local summary',
+        );
+        final remote = _incident(
+          id: 'incident-divergent',
+          summary: 'Remote summary',
+        );
+        await repository.save(local);
 
-      final transport = _FakeTransport()..remoteIncidents = <Incident>[remote];
-      final coordinator = SyncCoordinator(
-        repository: repository,
-        outbox: InMemorySyncOutbox(),
-        transport: transport,
-      );
+        final transport = _FakeTransport()
+          ..remoteIncidents = <Incident>[remote];
+        final coordinator = SyncCoordinator(
+          repository: repository,
+          outbox: InMemorySyncOutbox(),
+          transport: transport,
+        );
 
-      final result = await coordinator.synchronize();
+        final result = await coordinator.synchronize();
 
-      expect(result.remoteResults.single.status, RemoteApplyStatus.conflict);
-      expect((await repository.find(local.id))?.summary, 'Local summary');
-    });
+        expect(result.remoteResults.single.status, RemoteApplyStatus.conflict);
+        expect((await repository.find(local.id))?.summary, 'Local summary');
+      },
+    );
 
     test('pending local work blocks a newer remote overwrite', () async {
       final repository = InMemoryIncidentRepository();
@@ -301,10 +306,7 @@ void main() {
   });
 }
 
-Incident _incident({
-  required String id,
-  String summary = 'Initial summary',
-}) {
+Incident _incident({required String id, String summary = 'Initial summary'}) {
   return Incident.create(
     id: id,
     title: 'Incident $id',
