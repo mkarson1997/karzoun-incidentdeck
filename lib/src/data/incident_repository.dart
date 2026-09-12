@@ -10,6 +10,11 @@ abstract interface class IncidentRepository {
   Future<Incident?> find(String id);
 
   Future<void> save(Incident incident);
+
+  Future<Incident> update(
+    String id,
+    Incident Function(Incident current) mutation,
+  );
 }
 
 class InMemoryIncidentRepository implements IncidentRepository {
@@ -28,6 +33,20 @@ class InMemoryIncidentRepository implements IncidentRepository {
   @override
   Future<void> save(Incident incident) async {
     _incidents[incident.id] = incident;
+  }
+
+  @override
+  Future<Incident> update(
+    String id,
+    Incident Function(Incident current) mutation,
+  ) async {
+    final current = _incidents[id];
+    if (current == null) {
+      throw IncidentDomainException('Unknown incident: $id.');
+    }
+    final updated = mutation(current);
+    _incidents[id] = updated;
+    return updated;
   }
 }
 
@@ -74,6 +93,31 @@ class JsonIncidentRepository implements IncidentRepository {
       final incidents = await _load();
       incidents[incident.id] = incident;
       await _write(incidents.values.toList());
+    } finally {
+      completer.complete();
+    }
+  }
+
+  @override
+  Future<Incident> update(
+    String id,
+    Incident Function(Incident current) mutation,
+  ) async {
+    final previous = _writeTail;
+    final completer = Completer<void>();
+    _writeTail = completer.future;
+
+    await previous;
+    try {
+      final incidents = await _load();
+      final current = incidents[id];
+      if (current == null) {
+        throw IncidentDomainException('Unknown incident: $id.');
+      }
+      final updated = mutation(current);
+      incidents[id] = updated;
+      await _write(incidents.values.toList());
+      return updated;
     } finally {
       completer.complete();
     }
