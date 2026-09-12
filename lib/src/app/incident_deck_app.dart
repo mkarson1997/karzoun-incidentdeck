@@ -190,7 +190,7 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
   }
 
   Future<void> _importSnapshot() async {
-    final controller = TextEditingController();
+    var draft = '';
     final raw = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -198,9 +198,9 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
         content: SizedBox(
           width: 640,
           child: TextField(
-            controller: controller,
             minLines: 10,
             maxLines: 16,
+            onChanged: (value) => draft = value,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'IncidentDeck JSON snapshot',
@@ -213,13 +213,12 @@ class _IncidentHomePageState extends State<IncidentHomePage> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
+            onPressed: () => Navigator.pop(context, draft),
             child: const Text('Validate and replace'),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (raw == null || raw.trim().isEmpty || !mounted) {
       return;
     }
@@ -437,15 +436,15 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   }
 
   Future<String?> _prompt(String title, String label) async {
-    final controller = TextEditingController();
+    var draft = '';
     final value = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
         content: TextField(
-          controller: controller,
           autofocus: true,
           decoration: InputDecoration(labelText: label),
+          onChanged: (value) => draft = value,
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
         actions: <Widget>[
@@ -454,13 +453,12 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
+            onPressed: () => Navigator.pop(context, draft),
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    controller.dispose();
     final normalized = value?.trim();
     if (normalized == null || normalized.isEmpty) {
       return null;
