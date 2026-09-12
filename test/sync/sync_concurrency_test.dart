@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:incidentdeck/src/data/incident_repository.dart';
 import 'package:incidentdeck/src/domain/incident.dart';
