@@ -21,6 +21,8 @@ class SyncOutboxException implements Exception {
 
 class InMemorySyncOutbox implements SyncOutbox {
   final Map<String, SyncOperation> _operations = <String, SyncOperation>{};
+  final Map<String, SyncOperation> _acknowledgedOperations =
+      <String, SyncOperation>{};
 
   @override
   Future<void> enqueue(SyncOperation operation) async {
@@ -36,18 +38,19 @@ class InMemorySyncOutbox implements SyncOutbox {
       );
     }
 
+    final acknowledged = _acknowledgedOperations[operation.operationId];
+    if (acknowledged != null) {
+      _requireSamePayload(acknowledged, operation);
+      return;
+    }
+
     final existing = _operations[operation.operationId];
     if (existing == null) {
       _operations[operation.operationId] = operation;
       return;
     }
 
-    if (!_samePayload(existing, operation)) {
-      throw SyncOutboxException(
-        'Operation id collision with different payload: '
-        '${operation.operationId}.',
-      );
-    }
+    _requireSamePayload(existing, operation);
   }
 
   @override
@@ -67,7 +70,18 @@ class InMemorySyncOutbox implements SyncOutbox {
 
   @override
   Future<void> acknowledge(String operationId) async {
-    _operations.remove(operationId);
+    final operation = _operations.remove(operationId);
+    if (operation != null) {
+      _acknowledgedOperations[operationId] = operation;
+    }
+  }
+
+  void _requireSamePayload(SyncOperation left, SyncOperation right) {
+    if (!_samePayload(left, right)) {
+      throw SyncOutboxException(
+        'Operation id collision with different payload: ${right.operationId}.',
+      );
+    }
   }
 
   bool _samePayload(SyncOperation left, SyncOperation right) {

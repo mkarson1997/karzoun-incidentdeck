@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:incidentdeck/src/data/incident_repository.dart';
@@ -7,7 +8,7 @@ import 'package:incidentdeck/src/sync/sync_protocol.dart';
 import 'package:incidentdeck/src/sync/sync_transport.dart';
 
 class SyncCoordinator {
-  const SyncCoordinator({
+  SyncCoordinator({
     required this.repository,
     required this.outbox,
     required this.transport,
@@ -16,8 +17,22 @@ class SyncCoordinator {
   final IncidentRepository repository;
   final SyncOutbox outbox;
   final SyncTransport transport;
+  Future<void> _syncTail = Future<void>.value();
 
   Future<SyncCycleResult> synchronize() async {
+    final previous = _syncTail;
+    final completer = Completer<void>();
+    _syncTail = completer.future;
+
+    await previous;
+    try {
+      return await _synchronizeOnce();
+    } finally {
+      completer.complete();
+    }
+  }
+
+  Future<SyncCycleResult> _synchronizeOnce() async {
     final pushedOperationIds = <String>[];
     final pushConflicts = <SyncPushResult>[];
     final blockedIncidentIds = <String>{};
@@ -117,22 +132,36 @@ class SyncCoordinator {
     required Incident remote,
   }) async {
     if (local == null) {
-      await repository.save(remote);
-      return RemoteApplyResult(
-        incidentId: remote.id,
-        status: RemoteApplyStatus.applied,
-        remoteIncident: remote,
+      final applied = await repository.saveIfRevision(
+        id: remote.id,
+        expectedRevision: null,
+        incident: remote,
       );
+      if (applied) {
+        return RemoteApplyResult(
+          incidentId: remote.id,
+          status: RemoteApplyStatus.applied,
+          remoteIncident: remote,
+        );
+      }
+      return _concurrentApplyConflict(remote);
     }
 
     if (remote.revision > local.revision) {
-      await repository.save(remote);
-      return RemoteApplyResult(
-        incidentId: remote.id,
-        status: RemoteApplyStatus.applied,
-        localIncident: local,
-        remoteIncident: remote,
+      final applied = await repository.saveIfRevision(
+        id: remote.id,
+        expectedRevision: local.revision,
+        incident: remote,
       );
+      if (applied) {
+        return RemoteApplyResult(
+          incidentId: remote.id,
+          status: RemoteApplyStatus.applied,
+          localIncident: local,
+          remoteIncident: remote,
+        );
+      }
+      return _concurrentApplyConflict(remote);
     }
 
     if (remote.revision < local.revision) {
@@ -157,6 +186,16 @@ class SyncCoordinator {
       incidentId: remote.id,
       status: RemoteApplyStatus.conflict,
       localIncident: local,
+      remoteIncident: remote,
+    );
+  }
+
+  Future<RemoteApplyResult> _concurrentApplyConflict(Incident remote) async {
+    final current = await repository.find(remote.id);
+    return RemoteApplyResult(
+      incidentId: remote.id,
+      status: RemoteApplyStatus.conflict,
+      localIncident: current,
       remoteIncident: remote,
     );
   }
