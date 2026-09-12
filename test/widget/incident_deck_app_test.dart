@@ -92,7 +92,10 @@ void main() {
 
     await tester.tap(find.text('Acknowledge').last);
     await tester.pumpAndSettle();
-    expect(find.textContaining('Acknowledged'), findsOneWidget);
+    expect(
+      find.text('Acknowledged · Local delivery: unsupported'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('workspace exposes semantic local controls', (tester) async {
