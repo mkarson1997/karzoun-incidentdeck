@@ -9,26 +9,29 @@ import 'package:incidentdeck/src/sync/sync_protocol.dart';
 import 'package:incidentdeck/src/sync/sync_transport.dart';
 
 void main() {
-  test('concurrent sync cycles serialize and push a pending operation once', () async {
-    final outbox = InMemorySyncOutbox();
-    final operation = _operation(_incident(id: 'incident-concurrent-sync'));
-    await outbox.enqueue(operation);
+  test(
+    'concurrent sync cycles serialize and push a pending operation once',
+    () async {
+      final outbox = InMemorySyncOutbox();
+      final operation = _operation(_incident(id: 'incident-concurrent-sync'));
+      await outbox.enqueue(operation);
 
-    final transport = _DelayedTransport();
-    final coordinator = SyncCoordinator(
-      repository: InMemoryIncidentRepository(),
-      outbox: outbox,
-      transport: transport,
-    );
+      final transport = _DelayedTransport();
+      final coordinator = SyncCoordinator(
+        repository: InMemoryIncidentRepository(),
+        outbox: outbox,
+        transport: transport,
+      );
 
-    await Future.wait(<Future<SyncCycleResult>>[
-      coordinator.synchronize(),
-      coordinator.synchronize(),
-    ]);
+      await Future.wait(<Future<SyncCycleResult>>[
+        coordinator.synchronize(),
+        coordinator.synchronize(),
+      ]);
 
-    expect(transport.pushedOperationIds, <String>[operation.operationId]);
-    expect(await outbox.pending(), isEmpty);
-  });
+      expect(transport.pushedOperationIds, <String>[operation.operationId]);
+      expect(await outbox.pending(), isEmpty);
+    },
+  );
 
   test('accepted operation cannot be re-enqueued in the same outbox', () async {
     final outbox = InMemorySyncOutbox();
@@ -43,10 +46,7 @@ void main() {
 
   test('remote apply does not overwrite a racing local mutation', () async {
     final local = _incident(id: 'incident-apply-race');
-    final remote = local.addNote(
-      'Remote note',
-      DateTime.utc(2026, 9, 12, 16),
-    );
+    final remote = local.addNote('Remote note', DateTime.utc(2026, 9, 12, 16));
     final repository = _RacingIncidentRepository(local);
     final transport = _PullOnlyTransport(remote);
     final coordinator = SyncCoordinator(
