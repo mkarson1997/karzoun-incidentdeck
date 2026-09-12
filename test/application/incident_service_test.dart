@@ -65,7 +65,10 @@ void main() {
 
     final restored = await service.getIncident(incident.id);
     expect(restored, isNotNull);
-    expect(restored!.responders, containsAll(<String>['responder-a', 'responder-b']));
+    expect(
+      restored!.responders,
+      containsAll(<String>['responder-a', 'responder-b']),
+    );
     expect(restored.responders, hasLength(2));
     expect(restored.revision, 3);
     expect(restored.timeline, hasLength(3));
