@@ -48,52 +48,40 @@ class IncidentService {
 
   Future<Incident?> getIncident(String id) => repository.find(id);
 
-  Future<Incident> transition(String id, IncidentStatus next) async {
-    final incident = await _require(id);
-    final updated = incident.transitionTo(next, _clock());
-    await repository.save(updated);
-    return updated;
-  }
-
-  Future<Incident> assignResponder(String id, String responderId) async {
-    final incident = await _require(id);
-    final updated = incident.assignResponder(responderId, _clock());
-    await repository.save(updated);
-    return updated;
-  }
-
-  Future<Incident> addNote(String id, String note) async {
-    final incident = await _require(id);
-    final updated = incident.addNote(note, _clock());
-    await repository.save(updated);
-    return updated;
-  }
-
-  Future<Incident> raiseAlert(String id, String message) async {
-    final incident = await _require(id);
+  Future<Incident> transition(String id, IncidentStatus next) {
     final now = _clock().toUtc();
-    final alertId = 'alert-${incident.id}-${incident.revision + 1}';
-    final updated = incident.raiseAlert(
-      alertId: alertId,
-      message: message,
-      at: now,
+    return repository.update(
+      id,
+      (incident) => incident.transitionTo(next, now),
     );
-    await repository.save(updated);
-    return updated;
   }
 
-  Future<Incident> acknowledgeAlert(String id, String alertId) async {
-    final incident = await _require(id);
-    final updated = incident.acknowledgeAlert(alertId, _clock());
-    await repository.save(updated);
-    return updated;
+  Future<Incident> assignResponder(String id, String responderId) {
+    final now = _clock().toUtc();
+    return repository.update(
+      id,
+      (incident) => incident.assignResponder(responderId, now),
+    );
   }
 
-  Future<Incident> _require(String id) async {
-    final incident = await repository.find(id);
-    if (incident == null) {
-      throw IncidentDomainException('Unknown incident: $id.');
-    }
-    return incident;
+  Future<Incident> addNote(String id, String note) {
+    final now = _clock().toUtc();
+    return repository.update(id, (incident) => incident.addNote(note, now));
+  }
+
+  Future<Incident> raiseAlert(String id, String message) {
+    final now = _clock().toUtc();
+    return repository.update(id, (incident) {
+      final alertId = 'alert-${incident.id}-${incident.revision + 1}';
+      return incident.raiseAlert(alertId: alertId, message: message, at: now);
+    });
+  }
+
+  Future<Incident> acknowledgeAlert(String id, String alertId) {
+    final now = _clock().toUtc();
+    return repository.update(
+      id,
+      (incident) => incident.acknowledgeAlert(alertId, now),
+    );
   }
 }
