@@ -214,8 +214,7 @@ $branchesToDelete = @(
     "chore/v0.1.0-finalization"
 )
 foreach ($branch in $branchesToDelete) {
-    $encodedRef = [Uri]::EscapeDataString("heads/$branch")
-    & gh api --method DELETE "repos/$Repository/git/refs/$encodedRef" 2>$null | Out-Null
+    & gh api --method DELETE "repos/$Repository/git/refs/heads/$branch" 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  deleted $branch"
     }
