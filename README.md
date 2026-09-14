@@ -107,12 +107,26 @@ The repository intentionally ships no HTTP adapter, server, authentication flow,
 
 ## Toolchain
 
-CI pins Flutter `3.47.2` and third-party GitHub Actions by full commit SHA. The dependency lockfile is committed after dependency resolution.
+CI pins Flutter `3.47.2` and third-party GitHub Actions by full commit SHA. The committed dependency lockfile is enforced during CI and release builds.
+
+## Release process
+
+The `Release` workflow is intentionally separate from the universal PR gate. It runs only after a successful push-triggered `CI` workflow on `main` (or an explicit manual dispatch), checks out that exact verified SHA, repeats locked dependency resolution, format analysis/tests, and the release web build, then publishes the version declared in `pubspec.yaml` when no release for that version exists. A pre-existing release is validated rather than accepted silently.
+
+The release publishes only artifacts the repository actually builds and verifies:
+
+- `incidentdeck-web-vX.Y.Z.tar.gz`
+- `SHA256SUMS.txt`
+- GitHub-generated source archives for the tag
+
+No Android, iOS, macOS, Windows, or Linux native binary is claimed by this release workflow.
+
+Repository administration is kept outside the runtime product. `scripts/finalize_repository.ps1` verifies the green release tag and assets, applies focused topics and merge policy, creates the active default-branch ruleset requiring `CI Gate`, and cleans only branch tips proven to belong to merged pull requests. It is safe to re-run as a repository-state verifier/finalizer.
 
 ## Local development
 
 ```bash
-flutter pub get
+flutter pub get --enforce-lockfile
 dart format --output=none --set-exit-if-changed lib test
 flutter analyze
 flutter test
@@ -133,4 +147,4 @@ Native notification delivery requires a compatible host implementation of the do
 
 ## Status
 
-Milestones 1 through 4 are implemented in the current code line. Milestone 4 remains a synchronization boundary/reference architecture with honest capability limits; final `v0.1.0` release hardening, merged-main verification, repository metadata, and default-branch protection are separate finalization steps.
+Milestones 1 through 4 are implemented and merged. Final `v0.1.0` closure is verification-driven: the published release must point to a green `main` revision with the documented artifact set, and the repository-state finalizer must verify active default-branch governance. The synchronization feature remains a reference boundary with the capability limits documented above.

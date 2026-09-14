@@ -1,0 +1,195 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: incidentdeck-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      checks: read
+    env:
+      GH_REPO: ${{ github.repository }}
+      RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Checkout verified source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          persist-credentials: false
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(awk '$1 == "version:" {print $2; exit}' pubspec.yaml)"
+          version="${version%%+*}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid pubspec version: $version" >&2
+            exit 1
+          fi
+
+          tag="v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          release_id="$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$tag\") | .id" | head -n 1)"
+          if [[ -n "$release_id" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify new release source provenance
+        if: steps.meta.outputs.exists != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gate_count="$(gh api "repos/$GH_REPO/commits/$RELEASE_SHA/check-runs" \
+            --jq '[.check_runs[] | select(.name == "CI Gate" and .conclusion == "success")] | length')"
+          test "$gate_count" -ge 1
+
+      - name: Set up Flutter
+        if: steps.meta.outputs.exists != 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Verify locked dependencies
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter pub get --enforce-lockfile
+
+      - name: Format gate
+        if: steps.meta.outputs.exists != 'true'
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Static analysis
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter analyze
+
+      - name: Tests
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter test
+
+      - name: Release web build
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter build web --release
+
+      - name: Package verified web build
+        if: steps.meta.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          archive="incidentdeck-web-${{ steps.meta.outputs.tag }}.tar.gz"
+          source_epoch="$(git show -s --format=%ct "$RELEASE_SHA")"
+          tar \
+            --sort=name \
+            --mtime="@$source_epoch" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -C build \
+            -cf - web | gzip -n > "dist/$archive"
+          (
+            cd dist
+            sha256sum "$archive" > SHA256SUMS.txt
+          )
+
+          awk -v version="${{ steps.meta.outputs.version }}" '
+            index($0, "## [" version "]") == 1 { capture = 1 }
+            capture && /^## \[/ && index($0, "## [" version "]") != 1 { exit }
+            capture { print }
+          ' CHANGELOG.md > dist/release-notes.md
+          test -s dist/release-notes.md
+
+      - name: Publish GitHub release at verified SHA
+        if: steps.meta.outputs.exists != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --target "$RELEASE_SHA" \
+            --title "IncidentDeck ${{ steps.meta.outputs.tag }}" \
+            --notes-file dist/release-notes.md \
+            "dist/incidentdeck-web-${{ steps.meta.outputs.tag }}.tar.gz" \
+            "dist/SHA256SUMS.txt"
+
+      - name: Validate published release and provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+
+          release_id="$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$tag\") | .id" | head -n 1)"
+          test -n "$release_id"
+
+          release_json="$(gh api "repos/$GH_REPO/releases/$release_id")"
+          test "$(jq -r '.draft' <<< "$release_json")" = "false"
+          test "$(jq -r '.prerelease' <<< "$release_json")" = "false"
+
+          tag_type="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.type')"
+          tag_sha="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.sha')"
+          if [[ "$tag_type" == "tag" ]]; then
+            tag_sha="$(gh api "repos/$GH_REPO/git/tags/$tag_sha" --jq '.object.sha')"
+          fi
+
+          if [[ "${{ steps.meta.outputs.exists }}" != "true" ]]; then
+            test "$tag_sha" = "$RELEASE_SHA"
+          fi
+
+          gate_count="$(gh api "repos/$GH_REPO/commits/$tag_sha/check-runs" \
+            --jq '[.check_runs[] | select(.name == "CI Gate" and .conclusion == "success")] | length')"
+          test "$gate_count" -ge 1
+
+          mapfile -t assets < <(jq -r '.assets[].name' <<< "$release_json" | sort)
+          expected=("SHA256SUMS.txt" "incidentdeck-web-$tag.tar.gz")
+          test "${assets[*]}" = "${expected[*]}"
+
+          mapfile -t digests < <(jq -r '.assets[].digest // ""' <<< "$release_json")
+          test "${#digests[@]}" -eq 2
+          for digest in "${digests[@]}"; do
+            [[ "$digest" == sha256:* ]]
+          done
+
+      - name: Reject incomplete pre-existing release
+        if: failure() && steps.meta.outputs.exists == 'true'
+        shell: bash
+        run: |
+          echo "A release for ${{ steps.meta.outputs.tag }} already exists but failed validation." >&2
+          echo "Repair or remove the incomplete release before retrying; it is never accepted silently." >&2
+          exit 1
