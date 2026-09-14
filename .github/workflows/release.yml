@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: write
+      checks: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -60,8 +61,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-          if gh release view "$tag" >/dev/null 2>&1; then
+          release_id="$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$tag\") | .id" | head -n 1)"
+          if [[ -n "$release_id" ]]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -118,15 +122,47 @@ jobs:
             "dist/incidentdeck-web-${{ steps.meta.outputs.tag }}.tar.gz" \
             "dist/SHA256SUMS.txt"
 
-      - name: Verify release target and assets
-        if: steps.meta.outputs.exists != 'true'
+      - name: Validate published release and provenance
         shell: bash
         run: |
           set -euo pipefail
           tag="${{ steps.meta.outputs.tag }}"
-          tag_sha="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.sha')"
-          test "$tag_sha" = "$RELEASE_SHA"
 
-          mapfile -t assets < <(gh release view "$tag" --json assets --jq '.assets[].name' | sort)
+          release_id="$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$tag\") | .id" | head -n 1)"
+          test -n "$release_id"
+
+          release_json="$(gh api "repos/$GH_REPO/releases/$release_id")"
+          test "$(jq -r '.draft' <<< "$release_json")" = "false"
+          test "$(jq -r '.prerelease' <<< "$release_json")" = "false"
+
+          tag_type="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.type')"
+          tag_sha="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.sha')"
+          if [[ "$tag_type" == "tag" ]]; then
+            tag_sha="$(gh api "repos/$GH_REPO/git/tags/$tag_sha" --jq '.object.sha')"
+          fi
+
+          if [[ "${{ steps.meta.outputs.exists }}" != "true" ]]; then
+            test "$tag_sha" = "$RELEASE_SHA"
+          fi
+
+          gate_count="$(gh api "repos/$GH_REPO/commits/$tag_sha/check-runs" \
+            --jq '[.check_runs[] | select(.name == "CI Gate" and .conclusion == "success")] | length')"
+          test "$gate_count" -ge 1
+
+          mapfile -t assets < <(jq -r '.assets[].name' <<< "$release_json" | sort)
           expected=("SHA256SUMS.txt" "incidentdeck-web-$tag.tar.gz")
           test "${assets[*]}" = "${expected[*]}"
+
+          while IFS= read -r digest; do
+            test -n "$digest"
+            [[ "$digest" == sha256:* ]]
+          done < <(jq -r '.assets[].digest // empty' <<< "$release_json")
+
+      - name: Reject incomplete pre-existing release
+        if: failure() && steps.meta.outputs.exists == 'true'
+        shell: bash
+        run: |
+          echo "A release for ${{ steps.meta.outputs.tag }} already exists but failed validation." >&2
+          echo "Repair or remove the incomplete release before retrying; it is never accepted silently." >&2
+          exit 1
