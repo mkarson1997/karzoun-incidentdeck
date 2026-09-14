@@ -11,6 +11,12 @@ abstract interface class IncidentRepository {
 
   Future<void> save(Incident incident);
 
+  Future<bool> saveIfRevision({
+    required String id,
+    required int? expectedRevision,
+    required Incident incident,
+  });
+
   Future<Incident> update(
     String id,
     Incident Function(Incident current) mutation,
@@ -35,6 +41,21 @@ class InMemoryIncidentRepository implements IncidentRepository {
   @override
   Future<void> save(Incident incident) async {
     _incidents[incident.id] = incident;
+  }
+
+  @override
+  Future<bool> saveIfRevision({
+    required String id,
+    required int? expectedRevision,
+    required Incident incident,
+  }) async {
+    _validateConditionalSaveId(id, incident);
+    final current = _incidents[id];
+    if (current?.revision != expectedRevision) {
+      return false;
+    }
+    _incidents[id] = incident;
+    return true;
   }
 
   @override
@@ -105,6 +126,25 @@ class JsonIncidentRepository implements IncidentRepository {
       final incidents = await _load();
       incidents[incident.id] = incident;
       await _write(incidents.values);
+    });
+  }
+
+  @override
+  Future<bool> saveIfRevision({
+    required String id,
+    required int? expectedRevision,
+    required Incident incident,
+  }) {
+    return _serialized<bool>(() async {
+      _validateConditionalSaveId(id, incident);
+      final incidents = await _load();
+      final current = incidents[id];
+      if (current?.revision != expectedRevision) {
+        return false;
+      }
+      incidents[id] = incident;
+      await _write(incidents.values);
+      return true;
     });
   }
 
@@ -257,5 +297,13 @@ class JsonIncidentRepository implements IncidentRepository {
     if (await candidate.exists()) {
       await candidate.delete();
     }
+  }
+}
+
+void _validateConditionalSaveId(String id, Incident incident) {
+  if (incident.id != id) {
+    throw IncidentStoreException(
+      'Conditional save id $id does not match incident ${incident.id}.',
+    );
   }
 }
