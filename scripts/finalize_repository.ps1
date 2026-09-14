@@ -205,7 +205,8 @@ else {
     Write-Host "  [OK] created ruleset id=$rulesetId" -ForegroundColor Green
 }
 
-Write-Host "Cleaning merged milestone branches..." -ForegroundColor Cyan
+Write-Host "Cleaning only branch tips proven to belong to merged PRs..." -ForegroundColor Cyan
+$owner = ($Repository -split "/", 2)[0]
 $branchesToDelete = @(
     "feat/incidentdeck-v0.1-offline-core",
     "feat/local-durability-operational-ux",
@@ -214,13 +215,39 @@ $branchesToDelete = @(
     "chore/v0.1.0-finalization"
 )
 foreach ($branch in $branchesToDelete) {
-    & gh api --method DELETE "repos/$Repository/git/refs/heads/$branch" 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  deleted $branch"
+    $ref = $null
+    try {
+        $ref = Invoke-GhJson @("api", "repos/$Repository/git/ref/heads/$branch")
     }
-    else {
-        Write-Host "  skipped $branch (already absent or not deletable)"
+    catch {
+        Write-Host "  skipped $branch (already absent)"
+        continue
     }
+
+    $tip = [string]$ref.object.sha
+    $headFilter = [Uri]::EscapeDataString("${owner}:$branch")
+    $pulls = @(Invoke-GhJson @(
+        "api",
+        "repos/$Repository/pulls?state=closed&head=$headFilter&per_page=100"
+    ))
+    $mergedAtTip = @(
+        $pulls |
+        Where-Object {
+            -not [string]::IsNullOrWhiteSpace([string]$_.merged_at) -and
+            [string]$_.head.sha -eq $tip
+        }
+    ) | Select-Object -First 1
+
+    if ($null -eq $mergedAtTip) {
+        Write-Warning "Not deleting $branch: current tip $tip is not proven to be the head of a merged PR."
+        continue
+    }
+
+    & gh api --method DELETE "repos/$Repository/git/refs/heads/$branch" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to delete verified merged branch $branch."
+    }
+    Write-Host "  deleted $branch (merged PR #$($mergedAtTip.number))"
 }
 
 Write-Host "Verifying final ruleset and repository state..." -ForegroundColor Cyan
@@ -269,4 +296,4 @@ if ($finalTopics.names.Count -lt 7) {
 
 Write-Host ""
 Write-Host "DONE." -ForegroundColor Green
-Write-Host "IncidentDeck $ReleaseTag is verified at $mainSha, metadata is finalized, main is PR-only with strict CI Gate + resolved review threads + linear history, force-push/deletion are blocked, and merged milestone branches were cleaned." -ForegroundColor Cyan
+Write-Host "IncidentDeck $ReleaseTag is verified at $mainSha, metadata is finalized, main is PR-only with strict CI Gate + resolved review threads + linear history, force-push/deletion are blocked, and only proven merged milestone branches were cleaned." -ForegroundColor Cyan
