@@ -19,7 +19,7 @@ jobs:
   release:
     name: Build and publish release
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main')
@@ -29,7 +29,6 @@ jobs:
       contents: write
       checks: read
     env:
-      GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     steps:
@@ -37,17 +36,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_SHA }}
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: '3.47.2'
-          channel: stable
-          cache: true
+          persist-credentials: false
 
       - name: Resolve release metadata
         id: meta
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="$(awk '$1 == "version:" {print $2; exit}' pubspec.yaml)"
@@ -69,6 +64,25 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Verify new release source provenance
+        if: steps.meta.outputs.exists != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gate_count="$(gh api "repos/$GH_REPO/commits/$RELEASE_SHA/check-runs" \
+            --jq '[.check_runs[] | select(.name == "CI Gate" and .conclusion == "success")] | length')"
+          test "$gate_count" -ge 1
+
+      - name: Set up Flutter
+        if: steps.meta.outputs.exists != 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
 
       - name: Verify locked dependencies
         if: steps.meta.outputs.exists != 'true'
@@ -97,7 +111,15 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           archive="incidentdeck-web-${{ steps.meta.outputs.tag }}.tar.gz"
-          tar -C build -czf "dist/$archive" web
+          source_epoch="$(git show -s --format=%ct "$RELEASE_SHA")"
+          tar \
+            --sort=name \
+            --mtime="@$source_epoch" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -C build \
+            -cf - web | gzip -n > "dist/$archive"
           (
             cd dist
             sha256sum "$archive" > SHA256SUMS.txt
@@ -113,6 +135,8 @@ jobs:
       - name: Publish GitHub release at verified SHA
         if: steps.meta.outputs.exists != 'true'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh release create "${{ steps.meta.outputs.tag }}" \
@@ -124,6 +148,8 @@ jobs:
 
       - name: Validate published release and provenance
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag="${{ steps.meta.outputs.tag }}"
@@ -154,10 +180,11 @@ jobs:
           expected=("SHA256SUMS.txt" "incidentdeck-web-$tag.tar.gz")
           test "${assets[*]}" = "${expected[*]}"
 
-          while IFS= read -r digest; do
-            test -n "$digest"
+          mapfile -t digests < <(jq -r '.assets[].digest // ""' <<< "$release_json")
+          test "${#digests[@]}" -eq 2
+          for digest in "${digests[@]}"; do
             [[ "$digest" == sha256:* ]]
-          done < <(jq -r '.assets[].digest // empty' <<< "$release_json")
+          done
 
       - name: Reject incomplete pre-existing release
         if: failure() && steps.meta.outputs.exists == 'true'
