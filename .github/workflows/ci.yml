@@ -36,8 +36,8 @@ jobs:
           flutter --version
           dart --version
 
-      - name: Resolve dependencies
-        run: flutter pub get
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
 
       - name: Format gate
         run: |
