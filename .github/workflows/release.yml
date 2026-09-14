@@ -100,8 +100,8 @@ jobs:
           )
 
           awk -v version="${{ steps.meta.outputs.version }}" '
-            $0 == "## [" version "] - 2026-09-14" { capture = 1 }
-            capture && /^## \[/ && $0 != "## [" version "] - 2026-09-14" { exit }
+            index($0, "## [" version "]") == 1 { capture = 1 }
+            capture && /^## \[/ && index($0, "## [" version "]") != 1 { exit }
             capture { print }
           ' CHANGELOG.md > dist/release-notes.md
           test -s dist/release-notes.md
