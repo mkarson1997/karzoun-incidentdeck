@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: incidentdeck-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Checkout verified source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '$1 == "version:" {print $2; exit}' pubspec.yaml)"
+          version="${version%%+*}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid pubspec version: $version" >&2
+            exit 1
+          fi
+
+          tag="v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify locked dependencies
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter pub get --enforce-lockfile
+
+      - name: Format gate
+        if: steps.meta.outputs.exists != 'true'
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Static analysis
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter analyze
+
+      - name: Tests
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter test
+
+      - name: Release web build
+        if: steps.meta.outputs.exists != 'true'
+        run: flutter build web --release
+
+      - name: Package verified web build
+        if: steps.meta.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          archive="incidentdeck-web-${{ steps.meta.outputs.tag }}.tar.gz"
+          tar -C build -czf "dist/$archive" web
+          (
+            cd dist
+            sha256sum "$archive" > SHA256SUMS.txt
+          )
+
+          awk -v version="${{ steps.meta.outputs.version }}" '
+            $0 == "## [" version "] - 2026-09-14" { capture = 1 }
+            capture && /^## \[/ && $0 != "## [" version "] - 2026-09-14" { exit }
+            capture { print }
+          ' CHANGELOG.md > dist/release-notes.md
+          test -s dist/release-notes.md
+
+      - name: Publish GitHub release at verified SHA
+        if: steps.meta.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --target "$RELEASE_SHA" \
+            --title "IncidentDeck ${{ steps.meta.outputs.tag }}" \
+            --notes-file dist/release-notes.md \
+            "dist/incidentdeck-web-${{ steps.meta.outputs.tag }}.tar.gz" \
+            "dist/SHA256SUMS.txt"
+
+      - name: Verify release target and assets
+        if: steps.meta.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          tag_sha="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.sha')"
+          test "$tag_sha" = "$RELEASE_SHA"
+
+          mapfile -t assets < <(gh release view "$tag" --json assets --jq '.assets[].name' | sort)
+          expected=("SHA256SUMS.txt" "incidentdeck-web-$tag.tar.gz")
+          test "${assets[*]}" = "${expected[*]}"
